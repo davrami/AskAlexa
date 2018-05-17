@@ -1,0 +1,6 @@
+.vscode
+config.*
+templates.yaml
+comands.*
+certs
+__pycache__*

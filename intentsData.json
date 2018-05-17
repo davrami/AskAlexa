@@ -1,0 +1,18 @@
+{
+  "intents": [
+    {
+      "intentName": "valueIntent",
+      "request": "/alx/value/request/{}",
+      "response": "/alx/value/response/{}",
+      "statementError": "sorry, but I don't know of any {} devices."
+    }
+  ],
+
+  "slots": [
+    {
+      "slotsType": "device",
+      "name": "a1"
+      
+    }
+  ]
+}
