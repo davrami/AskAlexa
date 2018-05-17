@@ -4,4 +4,4 @@ templates.yaml
 comands.*
 certs
 __pycache__*
-*/credentials*
+credentials.h
