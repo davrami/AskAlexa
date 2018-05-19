@@ -10,7 +10,9 @@
 BME280I2C bme;
 #define I2C_SDA 5
 #define I2C_SCL 4
-#define GPIO12 12
+#define GPIO14 14
+#define GPIO13 13
+
 #define GPIO2 2
 #include "credentials.h"
 int status = WL_IDLE_STATUS;
@@ -33,7 +35,9 @@ static int count = 0;
 static String wifiStatus;
 static String mqttStatus;
 static String sensorsStatus;
-static bool toggleGPIO12 = false;
+static bool toggleGPIO14 = false;
+static bool toggleGPIO13 = false;
+
 static bool bPrevi = HIGH;
 
 
@@ -127,13 +131,21 @@ void callback(char* topic, byte* payload, unsigned int length) {
     String(fPres).toCharArray(pres, 10);
     client.publish("alx/value/esponse/a1", pres);
   };
-  if (szRx == "L12" || szRx == "l12") {
-    toggleGPIO12 = LOW;
-    digitalWrite(GPIO12, toggleGPIO12);
+  if (szRx == "L14" || szRx == "l14") {
+    toggleGPIO14 = LOW;
+    digitalWrite(GPIO14, toggleGPIO14);
   }
-  if (szRx == "H12" || szRx == "h12") {
-    toggleGPIO12 = HIGH;
-    digitalWrite(GPIO12, toggleGPIO12);
+  if (szRx == "H14" || szRx == "h14") {
+    toggleGPIO14 = HIGH;
+    digitalWrite(GPIO14, toggleGPIO14);
+  }
+  if (szRx == "L13" || szRx == "l13") {
+    toggleGPIO13 = LOW;
+    digitalWrite(GPIO13, toggleGPIO13);
+  }
+  if (szRx == "H13" || szRx == "h13") {
+    toggleGPIO13 = HIGH;
+    digitalWrite(GPIO13, toggleGPIO13);
   }
 
   String value = "\"temperature\": " + String(fTemp) ;
@@ -224,10 +236,14 @@ int overlaysCount = 1;
 
 void setup() {
   Serial.begin(115200);
-  pinMode(GPIO12, OUTPUT);
+  pinMode(GPIO14, OUTPUT);
+  pinMode(GPIO13, OUTPUT);
+  digitalWrite(GPIO14, HIGH);
+  digitalWrite(GPIO13, HIGH);
+
   //pinMode(GPIO2, INPUT);
 
-  ui.setTargetFPS(60);
+  ui.setTargetFPS(30);
   ui.setActiveSymbol(activeSymbol);
   ui.setInactiveSymbol(inactiveSymbol);
   // TOP, LEFT, BOTTOM, RIGHT

@@ -12,6 +12,7 @@ import time
 import unidecode
 import os
 
+
 app = Flask(__name__)
 config.conf(app)
 mqtt = Mqtt(app)
@@ -88,19 +89,19 @@ def get_value(device):
         exit.set()
     intentData = getIntentValue("valueIntent")
     slotData = getSlotValue(device)
-    print(str(slotData))
-    print(str())
+    
 
     if slotData and intentData :
 
         topicResp = intentData["response"].format(slotData["name"])
         topicReq = intentData["request"].format(slotData["name"])
-
+        print(str(topicResp))
+        print(str(topicReq))
         mqtt.subscribe(topicResp)
         @mqtt.on_topic(topicResp)
         def response(client, userdata, message):
             global text
-            text = str(message.payload.decode())
+            text = str(message.payload.decode()) + " degrees"
             print(text)
             mqtt.unsubscribe(topicResp)
             quit()
@@ -121,6 +122,30 @@ def get_value(device):
         text = 'sorry but you say device ' + device
         return statement(text)
 
+"""
+alexa ask demo start l14 in 5 seconds
+"""
+
+@ask.intent("startIntent")
+def setIntent(device, number, time):
+    text = "ok";
+    print(device, number, time)  
+    seconds = toSeconds(number, time)
+    def callbackAction():
+        print(device)
+        mqtt.publish("alx/value/request/a1",device)
+    t = Timer(seconds, callbackAction)
+    t.start()
+ 
+    return statement(text)
+
+def toSeconds(number, time):
+    if time == "seconds" or time == "second":
+        return float(number)
+    if time == "minutes":
+        return float(number * 60)
+    if time == "hours" or time == "hour":
+        return float(number * 3600)
 
 
 @ask.intent("setIntent")
