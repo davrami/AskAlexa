@@ -8,8 +8,31 @@
 #include "credentials.h"
 #include "images.h"
 
+#include <PubSubClient.h>
 #include <BME280I2C.h>
 BME280I2C bme;
+#define I2C_SDA 5
+#define I2C_SCL 4
+
+WiFiClient espClient;
+PubSubClient client(espClient);
+
+#define GPIO14 14
+#define GPIO13 13
+
+static bool toggleGPIO14 = false;
+static bool toggleGPIO13 = false;
+static String wifiStatus;
+static String mqttStatus;
+static String sensorsStatus;
+
+float temp(NAN), hum(NAN), pres(NAN);
+float fTemp(NAN), fHum(NAN), fPres(NAN);
+
+
+const char* mqtt_request = "alx/value/request/a1";
+const char* mqtt_response = "alx/value/response/a1";
+char data[80];
 
   
 String      time_str, weather_text, weather_extra_text;
@@ -55,13 +78,10 @@ int wx_average_1hr, wx_average_3hr; // Indicators of average weather
 
 bool look_3hr = true;
 bool look_1hr = false;
-float temp(NAN), hum(NAN), pres(NAN);
 static int count = 0;
 
 SSD1306 display(0x3c, 5,4); // OLED display object definition (address, SDA, SCL)
 OLEDDisplayUi ui     ( &display );
-
-WiFiClient client; // wifi client object
 
 #define pressure_offset 3.3 // Used to adjust sensor reading to correct pressure for your location
 
@@ -69,6 +89,7 @@ WiFiClient client; // wifi client object
 // What's displayed along the top line
 void msOverlay(OLEDDisplay *display, OLEDDisplayUiState* state) {
   display->setTextAlignment(TEXT_ALIGN_LEFT);
+
   display->drawString(0,0, time_str.substring(0,8));  //HH:MM:SS Sat 05-07-17
   display->setTextAlignment(TEXT_ALIGN_RIGHT);
   display->drawString(128,0, time_str.substring(9));
@@ -141,15 +162,16 @@ void drawFrame4(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int1
 void drawFrame5(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y) {
   reading[23].pressure = (reading[23].pressure + read_pressure())/2;                 // Update rolling average
   float  trend = reading[23].pressure - reading[22].pressure;                        // Get short-term trend
-  weather_description wx_text = get_forecast_text(read_pressure(), trend, look_1hr); // Convert to forecast text based on 1-hours
-  ForecastToImgTxt(wx_text);
-  display->drawString(x+0,y+10,"Short-term forecast:");
+  //weather_description wx_text = get_forecast_text(read_pressure(), trend, look_1hr); // Convert to forecast text based on 1-hours
+  //ForecastToImgTxt(wx_text);
+  display->drawString(x+0,y+10,WiFi.localIP().toString());
   display->setFont(ArialMT_Plain_16);
   display->drawStringMaxWidth(x+0,y+18,127,weather_text);
   display->setFont(ArialMT_Plain_10);
 }
 
 float read_pressure(){
+   //Serial.println("read");  
   int reading = (pres/100.0F+pressure_offset)*10; // Rounded result to 1-decimal place
   return (float)reading/10;
 }
@@ -237,19 +259,100 @@ int frameCount = 5;
 OverlayCallback overlays[] = { msOverlay };
 int overlaysCount = 1;
 
+
+
+
+
+void callback(char* topic, byte* payload, unsigned int length) {
+  String szRx = "";
+
+  Serial.print("Message arrived [");
+  Serial.print(topic);
+  Serial.print("] ");
+  for (int i = 0; i < length; i++) {
+    char receivedChar = (char)payload[i];
+    szRx += receivedChar;
+  }
+  Serial.println(szRx);
+
+  float fTemp(NAN), fHum(NAN), fPres(NAN);
+  vLecturaBme280(&fTemp, &fHum, &fPres);
+
+  if (szRx == "temp") {
+    char temp[10];
+    String(fTemp).toCharArray(temp, 10);
+    client.publish("alx/value/response/a1", temp);
+  };
+  if (szRx == "hum") {
+    char hum[10];
+    String(fHum).toCharArray(hum, 10);
+    client.publish("alx/value/response/a1", hum);
+  };
+  if (szRx == "pres") {
+    char pres[10];
+    String(fPres).toCharArray(pres, 10);
+    client.publish("alx/value/esponse/a1", pres);
+  };
+  if (szRx == "L14" || szRx == "l14") {
+    toggleGPIO14 = LOW;
+    digitalWrite(GPIO14, toggleGPIO14);
+  }
+  if (szRx == "H14" || szRx == "h14") {
+    toggleGPIO14 = HIGH;
+    digitalWrite(GPIO14, toggleGPIO14);
+  }
+  if (szRx == "L13" || szRx == "l13") {
+    toggleGPIO13 = LOW;
+    digitalWrite(GPIO13, toggleGPIO13);
+  }
+  if (szRx == "H13" || szRx == "h13") {
+    toggleGPIO13 = HIGH;
+    digitalWrite(GPIO13, toggleGPIO13);
+  } 
+}
+
+void vLecturaBme280(float *pfTemp, float *pfHum, float *pfPres) {
+  BME280::TempUnit tempUnit(BME280::TempUnit_Celsius);
+  BME280::PresUnit presUnit(BME280::PresUnit_Pa);
+  bme.read(*pfPres, *pfTemp, *pfHum, tempUnit, presUnit);
+  
+}
+
+
+
 void setup() { 
   float p,t;
-  float temp(NAN), hum(NAN), pres(NAN);
   Serial.begin(115200);
-  Wire.begin(5,4);
+  pinMode(GPIO14, OUTPUT);
+  pinMode(GPIO13, OUTPUT);
+  digitalWrite(GPIO14, HIGH);
+  digitalWrite(GPIO13, HIGH);
+ 
   if (!StartWiFi(ssid,password)) Serial.println("Failed to start WiFi Service after 20 attempts");;
   configTime(1, 3600, "pool.ntp.org");
-    while(!bme.begin()) { 
-    Serial.println("Could not find a sensor, check wiring!");
+  while(!Serial) {} // Wait
+
+  
+  Wire.begin(I2C_SDA, I2C_SCL);
+  while(!bme.begin())
+  {
+    Serial.println("Could not find BME280 sensor!");
+  }
+  switch(bme.chipModel())
+    {
+       case BME280::ChipModel_BME280:
+         Serial.println("Found BME280 sensor! Success.");
+         break;
+       case BME280::ChipModel_BMP280:
+         Serial.println("Found BMP280 sensor! No Humidity available.");
+         break;
+       default:
+         Serial.println("Found UNKNOWN sensor! Error!");
     }
-    Serial.println("Found a sensor continuing");
-    
-                                                   // Note that only 0,5,11,17,20,21,22,23 are used as display positions
+  
+  Serial.println("Found a sensor continuing");
+  if (!StartMqtt()) Serial.println("Failed to start MQTT Service after 20 attempts");;
+ 
   last_reading_hour = reading_hour;
   wx_average_1hr = 0; // Until we get a better idea
   wx_average_3hr = 0; // Until we get a better idea
@@ -268,29 +371,33 @@ void setup() {
 }
 
 void loop() {
-  
+
   int remainingTimeBudget = ui.update();
   if (remainingTimeBudget > 0) { // Do some work here if required
     count++;
     if (count % 200 == 0) {
-      if(count == 400){
+      if(count == 800){
          for (int i = 0; i <= 23; i++){ // At the start all array values are the same as a baseline 
-          reading[i].pressure     = read_pressure();       // A rounded to 1-decimal place version of pressure
-          reading[i].temperature  = temp; // Although not used, but avialable
-          reading[i].humidity     = hum;    // Although not used, but avialable
+          /*reading[i].pressure     = read_pressure();       // A rounded to 1-decimal place version of pressure
+          reading[i].temperature  = pres; // Although not used, but avialable
+          reading[i].humidity     = temp;    // Although not used, but avialable
           reading[i].wx_state_1hr = unknown;               // To begin with  
-          reading[i].wx_state_3hr = unknown;               // To begin with 
+          reading[i].wx_state_3hr = unknown;  */             // To begin with 
         }
       }
         update_time_and_data();
-      
-        BME280::TempUnit tempUnit(BME280::TempUnit_Celsius);
-        BME280::PresUnit presUnit(BME280::PresUnit_Pa);
-        bme.read(pres, temp, hum, tempUnit, presUnit);
+        //vLecturaBme280();
+        //printBME280Data(&Serial);
+        vLecturaBme280(&fTemp, &fHum, &fPres);
+        Serial.println(fTemp);
 
-        Serial.println(temp);
-        Serial.println(pres);
-       
+        struct tm timeinfo;
+          if(!getLocalTime(&timeinfo)){
+            Serial.println("Failed to obtain time");
+          }
+                
+        Serial.println(&timeinfo, "%A, %d %B %y %H:%M:%S"); // Displays: Saturday, 24 June 17 14:05:49
+
         for (int i = 0; i < 24;i++){
           //Serial.println(String(i)+" "+String(reading[i].pressure));
         }
@@ -299,6 +406,11 @@ void loop() {
     
     delay(remainingTimeBudget);
   }
+  
+   if (!client.connected()) {
+      StartMqtt();
+    }
+  client.loop();
 }
 
 void update_time_and_data(){
@@ -310,7 +422,7 @@ void update_time_and_data(){
       reading[i].wx_state_1hr = reading[i+1].wx_state_1hr;
       reading[i].wx_state_3hr = reading[i+1].wx_state_3hr;
     }
-    reading[23].pressure     = read_pressure(); // Update time=now with current value of pressure
+    //reading[23].pressure     = read_pressure(); // Update time=now with current value of pressure
     reading[23].wx_state_1hr = current_wx;
     reading[23].wx_state_3hr = current_wx;
     last_reading_hour        = reading_hour;
@@ -352,6 +464,59 @@ int StartWiFi(const char* ssid, const char* password){
   Serial.println(WiFi.localIP());
   return true;
 }
+
+int StartMqtt(){
+  
+  client.setServer(mqtt_server, mqtt_port);
+  client.setCallback(callback);
+  
+  int connAttempts = 0;
+  Serial.println("\r\nConnecting MQTT: " + String(mqtt_server));
+
+  while (!client.connected()) {
+      Serial.print("Attempting MQTT connection...");
+      if (client.connect("Client", mqtt_username, mqtt_password)) {
+        char ip[50];
+        WiFi.localIP().toString().toCharArray(ip, 50);
+        client.publish("alx/init/a1", ip);
+        client.subscribe("alx/value/request/a1");  
+      } else {
+        Serial.print("failed, rc=");
+        Serial.print(client.state());
+        Serial.println(" try again in 5 seconds");
+        // Wait 5 seconds before retrying
+        delay(8000);
+      }
+      delay(500);
+      Serial.print(".");
+      if(connAttempts > 20) return false;
+      connAttempts++;
+    }
+  Serial.println("Mqtt connected");
+  return true;
+}
+
+
+void printBME280Data
+(
+   Stream* client
+)
+{
+   BME280::TempUnit tempUnit(BME280::TempUnit_Celsius);
+   BME280::PresUnit presUnit(BME280::PresUnit_Pa);
+   bme.read(pres, temp, hum, tempUnit, presUnit);
+
+   client->print("Temp: ");
+   client->print(temp);
+   client->print("°"+ String(tempUnit == BME280::TempUnit_Celsius ? 'C' :'F'));
+   client->print("\t\tHumidity: ");
+   client->print(hum);
+   client->print("% RH");
+   client->print("\t\tPressure: ");
+   client->print(pres);
+   client->println(" Pa");
+}
+
 /*
 FRAME-3 description
 // This frame draws a graph of pressure (delata) change for the last 24-hours, see Annex* for more details
