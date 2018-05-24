@@ -13,7 +13,7 @@ BME280I2C bme;
 #define GPIO14 14
 #define GPIO13 13
 #define pressure_offset 3.3
-static float temperature_set = 30.0F;
+static float temperature_set = 38.0F;
 static boolean heater = true;
 static boolean heaterSTOP = false;
 
@@ -249,12 +249,6 @@ void callback(char* topic, byte* payload, unsigned int length) {
   value = value + value2;
   String payload2 = "{ \"devices\": \"a1\",\"payload\": {" + value + "}}";
   payload2.toCharArray(data, (payload2.length() + 1));
-
-
-  /*if(szRx == "2L") digitalWrite(ledPin,LOW);
-    if(szRx == "2H") digitalWrite(ledPin,HIGH);
-    if(szRx == "13L") digitalWrite(ledGreen,LOW);
-    if(szRx == "13H") digitalWrite(ledGreen,HIGH);*/
 }
 
 
@@ -519,19 +513,17 @@ void vLecturaDigitalWrite() {
 }
 
 void vLecturaTemp() {
-  if (!heaterSTOP) {
-    if (((float)temperature_set - 2.0F) > fTemp  ) {
+    if (((float)temperature_set - 2.0F) > fTemp && !heaterSTOP ) {
       Serial.println("ON");
       toggleGPIO14 = LOW;
       digitalWrite(GPIO14, toggleGPIO14);
       heater = false; //inverse logic
-    } else if(((float)temperature_set) <= fTemp){
+    } else{
       toggleGPIO14 = HIGH;
       digitalWrite(GPIO14, toggleGPIO14);
       Serial.println("OFF");
       heater = true; //inverse logic
     }
-  }
 }
 
 

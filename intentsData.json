@@ -3,8 +3,26 @@
     {
       "intentName": "valueIntent",
       "request": "alx/value/request/{}",
+      "requestPayload":"temp",
       "response": "alx/value/response/{}",
+      "responseText":"{} degrees",
       "statementError": "sorry, but I don't know of any {} devices."
+    },
+    {
+      "intentName": "setIntent",
+      "request": "alx/value/request/a1",
+      "requestPayload":"s{}",
+      "response": "alx/value/response/{}",
+      "responseText":"ok",
+      "statementError": "s"
+    },
+    {
+      "intentName": "startIntent",
+      "request": "alx/value/request/a1",
+      "requestPayload":"s{}",
+      "response": "alx/value/response/{}",
+      "responseText":"ok",
+      "statementError": "s"
     }
   ],
 

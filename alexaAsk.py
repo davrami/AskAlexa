@@ -4,32 +4,28 @@ from flask_mqtt import Mqtt
 from threading import Timer
 from threading import Event
 
-import json
 import config
 import json
-import requests
 import time
 import unidecode
 import os
 
-
 app = Flask(__name__)
 config.conf(app)
 mqtt = Mqtt(app)
-
 
 def getIntent():
     with open('intentsData.json') as json_data:
         d = json.load(json_data)
         return d
 
-
+#method for parse de data from intents structure
 intentsData = getIntent()
 
 
 @mqtt.on_connect()
 def handle_connect(client, userdata, flags, rc):
-    mqtt.subscribe('demo/response/#')
+    mqtt.subscribe('alx/response/#')
 
 
 @mqtt.on_message()
@@ -40,45 +36,37 @@ def handle_mqtt_message(client, userdata, message):
     )
     print(data)
 
-
 ask = Ask(app, "/")
-
-
-def get_String():
-    return "David Ramirez Campoy"
-
 
 @app.route('/')
 def homepage():
     return "hi there, how ya doin?"
 
-
 @ask.launch
 def start_skill():
-    welcome_message = 'say yes or not '
-    return question(welcome_message)
-
+    speech_output = 'Hello, what you need to know?'
+    reprompt_text = "hello?"
+    return question(speech_output).reprompt(reprompt_text)
 
 @ask.intent("yesIntent")
 def share_headlines():
     string_msg = 'oh you say yes'
     return statement(string_msg)
 
-
 @ask.intent("noIntent")
 def no_intent():
     bye_text = 'oh okay... bye'
     return statement(bye_text)
 
+""" set {value} or set {value} temperature"""
+@ask.intent("setIntent")
+def setIntent(value):
+    intentData = getIntentValue("setIntent")
+    text = intentData["responseText"]
+    mqtt.publish(intentData["request"], intentData["requestPayload"].format(value))
+    return statement(text)
 
-sensors = {
-    'a1': 10,
-    'a2': 15,
-    'a3': 20
-}
-""" demo value {device} """
-
-
+""" value {device} """
 @ask.intent("valueIntent")
 def get_value(device):
     global text
@@ -90,7 +78,6 @@ def get_value(device):
     intentData = getIntentValue("valueIntent")
     slotData = getSlotValue(device)
     
-
     if slotData and intentData :
 
         topicResp = intentData["response"].format(slotData["name"])
@@ -101,14 +88,13 @@ def get_value(device):
         @mqtt.on_topic(topicResp)
         def response(client, userdata, message):
             global text
-            text = str(message.payload.decode()) + " degrees"
+            text = intentData["responseText"].format(str(message.payload.decode()));
             print(text)
             mqtt.unsubscribe(topicResp)
             quit()
 
-
         #temp or hum or pres
-        mqtt.publish(topicReq, "temp")
+        mqtt.publish(topicReq, intentData["requestPayload"])
 
         i = 0
         while (not exit.is_set()) and (i < 5):
@@ -119,21 +105,21 @@ def get_value(device):
 
         return statement(text)
     else:
-        text = 'sorry but you say device ' + device
+        
+        text = intentData["statementError"].format(device)
         return statement(text)
 
-"""
-alexa ask demo start l14 in 5 seconds
-"""
 
+"""alexa ask pi start l14 in 5 seconds"""
 @ask.intent("startIntent")
 def setIntent(device, number, time):
-    text = "ok";
+    intentData = getIntentValue("startIntent")
+    text = intentData["responseText"];
     print(device, number, time)  
     seconds = toSeconds(number, time)
     def callbackAction():
         print(device)
-        mqtt.publish("alx/value/request/a1",device)
+        mqtt.publish(intentData["request"],device)
     t = Timer(seconds, callbackAction)
     t.start()
  
@@ -148,19 +134,9 @@ def toSeconds(number, time):
         return float(number * 3600)
 
 
-@ask.intent("setIntent")
-def setIntent(value):
-    text = "ok"
-    mqtt.publish("alx/set/request", value)
-
-    return statement(text)
 
 
-
-
-""" demo ip """
-
-
+""" pi ip """
 @ask.intent("ipIntent")
 def ip(device):
     f = os.popen('hostname -I | cut -d\' \' -f1')
@@ -169,8 +145,7 @@ def ip(device):
     return statement(text)
 
 
-
-
+#Utility
 def getSlotValue(slot):
     for element in intentsData["slots"]:
         if slot == element["name"]:
