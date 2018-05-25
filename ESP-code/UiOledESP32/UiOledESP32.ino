@@ -8,6 +8,8 @@
 #include <WiFi.h>
 #include <BME280I2C.h>
 BME280I2C bme;
+
+
 #define I2C_SDA 5
 #define I2C_SCL 4
 #define GPIO14 14
@@ -102,7 +104,6 @@ void vLecturaBme280(float *pfTemp, float *pfHum, float *pfPres) {
   BME280::TempUnit tempUnit(BME280::TempUnit_Celsius);
   BME280::PresUnit presUnit(BME280::PresUnit_Pa);
   bme.read(*pfPres, *pfTemp, *pfHum, tempUnit, presUnit);
-
 }
 
 bool update_time() {
@@ -199,17 +200,17 @@ void callback(char* topic, byte* payload, unsigned int length) {
   float fTemp(NAN), fHum(NAN), fPres(NAN);
   vLecturaBme280(&fTemp, &fHum, &fPres);
 
-  if (szRx == "temp") {
+  if (szRx == "temp" || szRx == "temperature" ) {
     char temp[10];
     String(fTemp).toCharArray(temp, 10);
     client.publish("alx/value/response/a1", temp);
   };
-  if (szRx == "hum") {
+  if (szRx == "hum" || szRx == "humidity") {
     char hum[10];
     String(fHum).toCharArray(hum, 10);
     client.publish("alx/value/response/a1", hum);
   };
-  if (szRx == "pres") {
+  if (szRx == "pres" || szRx == "pressure") {
     char pres[10];
     String(fPres).toCharArray(pres, 10);
     client.publish("alx/value/esponse/a1", pres);
@@ -240,7 +241,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
   }
   if (szRx == "Astatus") {
     char payloadData[100];
-    String("{\"deviceStatus\": \"a1\", \"temp\": "+String(fTemp)+", \"hum\": "+String(fHum)+", \"setTemp\": "+temperature_set+", \"G14\": "+toggleGPIO14+" }").toCharArray(payloadData, 100 );
+    String("{\"deviceStatus\": \"a1\", \"temp\": " + String(fTemp) + ", \"hum\": " + String(fHum) + ", \"setTemp\": " + temperature_set + ", \"G14\": " + toggleGPIO14 + " }").toCharArray(payloadData, 100 );
     client.publish("alx/value/response/a1", payloadData);
   }
 
@@ -513,17 +514,17 @@ void vLecturaDigitalWrite() {
 }
 
 void vLecturaTemp() {
-    if (((float)temperature_set - 2.0F) > fTemp && !heaterSTOP ) {
-      Serial.println("ON");
-      toggleGPIO14 = LOW;
-      digitalWrite(GPIO14, toggleGPIO14);
-      heater = false; //inverse logic
-    } else{
-      toggleGPIO14 = HIGH;
-      digitalWrite(GPIO14, toggleGPIO14);
-      Serial.println("OFF");
-      heater = true; //inverse logic
-    }
+  if (((float)temperature_set - 2.0F) > fTemp && !heaterSTOP ) {
+    Serial.println("ON");
+    toggleGPIO14 = LOW;
+    digitalWrite(GPIO14, toggleGPIO14);
+    heater = false; //inverse logic
+  } else {
+    toggleGPIO14 = HIGH;
+    digitalWrite(GPIO14, toggleGPIO14);
+    Serial.println("OFF");
+    heater = true; //inverse logic
+  }
 }
 
 
@@ -593,6 +594,7 @@ void setup() {
   last_reading_hour = reading_hour;
   wx_average_1hr = 0; // Until we get a better idea
   wx_average_3hr = 0; // Until we get a better idea
+
 }
 
 
@@ -620,8 +622,11 @@ void loop() {
       }
       /*for (int i = 0; i < 24; i++) {
         Serial.println(String(i) + " " + String(reading[i].pressure));
-      }*/
+        }*/
       vLecturaTemp();
+    }
+    if (count % 1000 == 0 && isnan(fTemp)) {
+      ESP.restart();
     }
     vLecturaDigitalWrite();
 

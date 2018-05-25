@@ -110,9 +110,52 @@ def get_value(device):
         return statement(text)
 
 
+""" tell me {item} or get {item}"""
+@ask.intent("getValueIntent")
+def get_valueItem(item):
+    global text
+    text = ''
+    exit = Event()
+    def quit():
+        exit.set()
+    intentData = getIntentValue("getValueIntent")
+    slotData = getSlotValue("a1")
+    
+    if slotData and intentData :
+        topicResp = intentData["response"].format(slotData["name"])
+        topicReq = intentData["request"].format(slotData["name"])
+        print(str(topicResp))
+        print(str(topicReq))
+        mqtt.subscribe(topicResp)
+        @mqtt.on_topic(topicResp)
+        def response(client, userdata, message):
+            global text
+            print(str(message.payload.decode()))
+            text = intentData["responseText"].format(item,str(message.payload.decode()));
+            print(text)
+            mqtt.unsubscribe(topicResp)
+            quit()
+
+        #temp or hum or pres
+        mqtt.publish(topicReq, item)
+
+        i = 0
+        while (not exit.is_set()) and (i < 5):
+            i = i + 1
+            exit.wait(1)
+        if i >= 5:
+            text = 'device response timeout'
+
+        return statement(text)
+    else:
+        
+        text = intentData["statementError"].format(item)
+        return statement(text)
+
+
 """alexa ask pi start l14 in 5 seconds"""
 @ask.intent("startIntent")
-def setIntent(device, number, time):
+def startIntent(device, number, time):
     intentData = getIntentValue("startIntent")
     text = intentData["responseText"];
     print(device, number, time)  

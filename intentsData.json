@@ -23,6 +23,14 @@
       "response": "alx/value/response/{}",
       "responseText":"ok",
       "statementError": "s"
+    },
+    {
+      "intentName": "getValueIntent",
+      "request": "alx/value/request/{}",
+      "requestPayload":"",
+      "response": "alx/value/response/{}",
+      "responseText":"the {} {} is",
+      "statementError": "sorry, but I don't know of any {} devices."
     }
   ],
 
@@ -30,7 +38,33 @@
     {
       "slotsType": "device",
       "name": "a1"
-      
+    },
+    {
+      "slotsType": "item",
+      "name": "temperature"
+    },
+    {
+      "slotsType": "item",
+      "name": "humidity"
+    },
+    {
+      "slotsType": "item",
+      "name": "pressure"
+    },
+    {
+      "slotsType": "timeType",
+      "name": "seconds"
+    },{
+      "slotsType": "timeType",
+      "name": "minuts"
+    },
+    {
+      "slotsType": "timeType",
+      "name": "hours"
+    },
+    {
+      "slotsType": "timeType",
+      "name": "hour"
     }
   ]
 }
